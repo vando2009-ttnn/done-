@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản lý chi tiêu cá nhân</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#172033;--muted:#687386;--accent:#536dfe;--line:#e8edf4}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Arial,sans-serif}
+header{background:linear-gradient(120deg,#536dfe,#7c4dff);color:white;padding:30px 20px}
+.wrap{max-width:1050px;margin:auto;padding:0 18px}h1{margin:0 0 6px;font-size:28px}header p{margin:0;opacity:.9}
+main{padding:24px 0 45px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.card{background:var(--card);border-radius:16px;padding:20px;box-shadow:0 5px 20px #1b2a4a0b}
+.stat-label{color:var(--muted);font-size:14px}.stat-value{font-size:25px;font-weight:700;margin-top:6px}
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card h2{font-size:18px;margin:0 0 16px}
+.chart-area{display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;min-height:245px}
+.pie{width:190px;height:190px;border-radius:50%;background:conic-gradient(#dce2ee 0 100%);position:relative;flex:none}
+.pie:after{content:"";position:absolute;inset:48px;background:white;border-radius:50%}
+.legend{display:grid;gap:9px;font-size:14px}.legend span{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px}
+form{display:grid;gap:11px}label{font-size:13px;color:var(--muted);display:grid;gap:5px}
+input,select,button{font:inherit;border-radius:9px;padding:11px 12px;border:1px solid var(--line);background:white;color:var(--ink);width:100%}
+button{border:0;background:var(--accent);color:white;font-weight:700;cursor:pointer}button:hover{filter:brightness(.95)}
+.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:11px 8px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600}
+.delete{width:auto;padding:6px 10px;background:#fff0f0;color:#c0392b}
+.empty{text-align:center;color:var(--muted);padding:25px}
+.full{margin-top:18px}.hint{font-size:12px;color:var(--muted);margin-top:12px}
+@media(max-width:700px){.stats{grid-template-columns:1fr}.layout{grid-template-columns:1fr}.stat-value{font-size:22px}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>💰 Sổ chi tiêu của tôi</h1><p>Theo dõi khoản chi và xem tiền của bạn được sử dụng như thế nào.</p></div></header>
+<main class="wrap">
+<section class="stats">
+ <div class="card"><div class="stat-label">Tổng chi tiêu</div><div class="stat-value" id="total">0 ₫</div></div>
+ <div class="card"><div class="stat-label">Số khoản đã ghi</div><div class="stat-value" id="count">0</div></div>
+ <div class="card"><div class="stat-label">Khoản chi lớn nhất</div><div class="stat-value" id="largest">0 ₫</div></div>
+</section>
+<section class="layout">
+ <div class="card"><h2>📊 Biểu đồ chi tiêu</h2><div class="chart-area"><div class="pie" id="pie"></div><div class="legend" id="legend">Chưa có dữ liệu</div></div></div>
+ <div class="card"><h2>➕ Thêm khoản chi</h2>
+  <form id="expenseForm">
+   <label>Tên khoản chi<input id="name" placeholder="Ví dụ: Ăn sáng" maxlength="60" required></label>
+   <label>Số tiền (VNĐ)<input id="amount" type="number" min="1" step="1000" placeholder="Ví dụ: 25000" required></label>
+   <label>Danh mục<select id="category"><option>Ăn uống</option><option>Di chuyển</option><option>Học tập</option><option>Mua sắm</option><option>Giải trí</option><option>Khác</option></select></label>
+   <label>Ngày chi<input id="date" type="date" required></label>
+   <button type="submit">Thêm khoản chi</button>
+  </form><p class="hint">Dữ liệu được lưu trên trình duyệt của thiết bị này.</p>
+ </div>
+</section>
+<section class="card full"><h2>📋 Lịch sử chi tiêu</h2><div class="table-wrap"><table><thead><tr><th>Khoản chi</th><th>Danh mục</th><th>Ngày</th><th>Số tiền</th><th></th></tr></thead><tbody id="rows"></tbody></table><div class="empty" id="empty">Chưa có khoản chi nào. Hãy thêm khoản chi đầu tiên nhé!</div></div></section>
+</main>
+<script>
+const colors=['#536dfe','#ff9f43','#2ecc71','#e056a0','#20b8c5','#9b59b6'];
+const money=n=>new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0}).format(n);
+let expenses=[];try{expenses=JSON.parse(localStorage.getItem('myExpenses')||'[]')}catch(e){}
+const $=id=>document.getElementById(id);
+$('date').value=new Date().toISOString().slice(0,10);
+function save(){localStorage.setItem('myExpenses',JSON.stringify(expenses));render()}
+function render(){
+ const total=expenses.reduce((s,x)=>s+x.amount,0), largest=expenses.reduce((m,x)=>Math.max(m,x.amount),0);
+ $('total').textContent=money(total);$('count').textContent=expenses.length;$('largest').textContent=money(largest);
+ const sums={};expenses.forEach(x=>sums[x.category]=(sums[x.category]||0)+x.amount);
+ const entries=Object.entries(sums);let cursor=0;
+ const segments=entries.map(([cat,val],i)=>{const start=cursor;cursor+=total?val/total*100:0;return `${colors[i%colors.length]} ${start}% ${cursor}%`});
+ $('pie').style.background=total?`conic-gradient(${segments.join(',')})`:'conic-gradient(#dce2ee 0 100%)';
+ $('legend').innerHTML=entries.length?entries.map(([cat,val],i)=>`<div><span style="background:${colors[i%colors.length]}"></span>${cat}: <b>${money(val)}</b></div>`).join(''):'Chưa có dữ liệu';
+ $('rows').innerHTML=expenses.slice().reverse().map(x=>`<tr><td>${escapeHtml(x.name)}</td><td>${escapeHtml(x.category)}</td><td>${x.date}</td><td><b>${money(x.amount)}</b></td><td><button class="delete" onclick="removeExpense('${x.id}')">Xóa</button></td></tr>`).join('');
+ $('empty').style.display=expenses.length?'none':'block';
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function removeExpense(id){expenses=expenses.filter(x=>x.id!==id);save()}
+$('expenseForm').addEventListener('submit',e=>{e.preventDefault();const name=$('name').value.trim(),amount=Number($('amount').value);if(!name||!Number.isFinite(amount)||amount<=0)return;expenses.push({id:Date.now().toString()+Math.random().toString(16).slice(2),name,amount,category:$('category').value,date:$('date').value});e.target.reset();$('date').value=new Date().toISOString().slice(0,10);save()});
+render();
+</script>
+</body>
+</html>
